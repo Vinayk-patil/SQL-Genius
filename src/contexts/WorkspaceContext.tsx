@@ -11,8 +11,13 @@ import type {
 } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
-// Define the type for the item passed to addQueryToHistory, now including optional validationResult
-type AddQueryHistoryItemInput = Omit<QueryHistoryItem, 'id' | 'timestamp'>;
+// Define the type for the item passed to addQueryToHistory
+type AddQueryHistoryItemInput = {
+  sql: string;
+  status: QueryHistoryItem['status']; // Use the refined status from types
+  feedback?: string; // Optional top-level feedback
+  validationResult?: QueryValidationResult; // The detailed validation result
+};
 
 
 interface WorkspaceContextType {
@@ -23,7 +28,7 @@ interface WorkspaceContextType {
   currentProblem: PracticeProblem | null;
   setCurrentProblem: React.Dispatch<React.SetStateAction<PracticeProblem | null>>;
   queryHistory: QueryHistoryItem[];
-  addQueryToHistory: (item: AddQueryHistoryItemInput) => void; // Updated signature
+  addQueryToHistory: (item: AddQueryHistoryItemInput) => void;
   clearHistory: () => void;
   currentQuery: string;
   setCurrentQuery: React.Dispatch<React.SetStateAction<string>>;
@@ -52,8 +57,7 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
 
 
   const addQueryToHistory = useCallback((item: AddQueryHistoryItemInput) => {
-    // Item now includes sql, status, feedback, and optionally validationResult
-    setQueryHistory(prev => [{ ...item, id: uuidv4(), timestamp: new Date() }, ...prev].slice(0, 50)); // Limit history size
+    setQueryHistory(prev => [{ ...item, id: uuidv4(), timestamp: new Date() }, ...prev].slice(0, 50));
   }, []);
 
   const clearHistory = useCallback(() => {

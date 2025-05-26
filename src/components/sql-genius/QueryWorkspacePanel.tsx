@@ -16,12 +16,11 @@ import { validateSqlQuery } from '@/ai/flows/validate-sql-query';
 import { formatSchemaForAI, formatSampleDataForAI } from '@/lib/sql-formatter';
 import type { PracticeProblem, QueryValidationResult, QueryHistoryItem } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { QueryResultDisplay } from './QueryResultDisplay'; 
+import { QueryResultDisplay } from './QueryResultDisplay';
 import { useTheme } from 'next-themes';
 import { cn } from '@/lib/utils';
 
 
-// Dynamically import Monaco Editor
 const MonacoEditor = dynamic(() => import('@monaco-editor/react').then(mod => mod.default), {
   ssr: false,
   loading: () => <div className="flex items-center justify-center h-full bg-muted rounded-md"><Loader2 className="h-8 w-8 animate-spin text-primary" /> <span className="ml-2 text-sm">Loading Editor...</span></div>,
@@ -38,39 +37,59 @@ function QueryHistoryDisplay({ history, onSelectQuery, onClearHistory }: QueryHi
   if (history.length === 0) {
     return <p className="text-sm text-muted-foreground text-center py-4">No queries in history yet.</p>;
   }
+
+  const getStatusTextAndColor = (item: QueryHistoryItem) => {
+    switch (item.status) {
+      case 'validated_correct_solution':
+        return { text: 'Correct Solution', color: 'text-green-600 dark:text-green-500' };
+      case 'validated_incorrect_solution':
+        return { text: 'Incorrect Solution', color: 'text-orange-600 dark:text-orange-500' };
+      case 'validated_syntax_only':
+        return { text: 'Syntax Valid', color: 'text-blue-600 dark:text-blue-500' };
+      case 'error_syntax':
+        return { text: 'Syntax Error', color: 'text-red-600 dark:text-red-500' };
+      case 'error_ai_processing':
+        return { text: 'AI Processing Error', color: 'text-destructive' };
+      case 'generated_problem':
+        return { text: 'Problem Generated', color: 'text-purple-600 dark:text-purple-500' };
+      default:
+        return { text: item.status.replace(/_/g, ' '), color: 'text-muted-foreground' };
+    }
+  };
+
+
   return (
     <div className="space-y-3">
       <Button onClick={onClearHistory} variant="outline" size="sm" className="mb-2 text-sm">
         <Trash2 className="mr-2 h-4 w-4" /> Clear History
       </Button>
-      {history.map(item => (
-        <Card key={item.id} className="text-sm hover:shadow-lg transition-shadow bg-muted/20">
-          <CardContent className="p-3">
-            <div className="flex justify-between items-start gap-2">
-              <pre
-                className="whitespace-pre-wrap break-all flex-grow cursor-pointer font-mono text-xs sm:text-sm"
-                onClick={() => onSelectQuery(item.sql)}
-              >
-                {item.sql}
-              </pre>
-              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { navigator.clipboard.writeText(item.sql); }}>
-                <ClipboardCopy className="h-3.5 w-3.5"/>
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1.5">
-              {new Date(item.timestamp).toLocaleString()} -
-              <span className={cn("ml-1 font-medium",
-                item.status === 'validated_correct' ? 'text-green-600 dark:text-green-500' :
-                item.status === 'validated_incorrect' ? 'text-red-600 dark:text-red-500' :
-                item.status === 'error' ? 'text-destructive' : 'text-blue-600 dark:text-blue-500'
-              )}>
-                {item.status.replace(/_/g, ' ')}
-              </span>
-            </p>
-            {item.feedback && <p className="text-muted-foreground mt-1 text-xs italic">Feedback: {item.feedback}</p>}
-          </CardContent>
-        </Card>
-      ))}
+      {history.map(item => {
+        const {text: statusText, color: statusColor} = getStatusTextAndColor(item);
+        return (
+          <Card key={item.id} className="text-sm hover:shadow-lg transition-shadow bg-muted/20">
+            <CardContent className="p-3">
+              <div className="flex justify-between items-start gap-2">
+                <pre
+                  className="whitespace-pre-wrap break-all flex-grow cursor-pointer font-mono text-xs sm:text-sm"
+                  onClick={() => onSelectQuery(item.sql)}
+                >
+                  {item.sql}
+                </pre>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => { navigator.clipboard.writeText(item.sql); }}>
+                  <ClipboardCopy className="h-3.5 w-3.5"/>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                {new Date(item.timestamp).toLocaleString()} -
+                <span className={cn("ml-1 font-medium", statusColor)}>
+                  {statusText}
+                </span>
+              </p>
+              {item.feedback && <p className="text-muted-foreground mt-1 text-xs italic">Feedback: {item.feedback}</p>}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -109,7 +128,7 @@ export function QueryWorkspacePanel() {
     }
     setIsLoadingAi(true);
     setValidationResult(null);
-    setCurrentQuery(''); // Clear current query when generating new problem
+    setCurrentQuery('');
     setShowSolution(false);
     try {
       const problem = await generateSqlPracticeProblem({
@@ -118,10 +137,10 @@ export function QueryWorkspacePanel() {
         difficulty,
       });
       setCurrentProblem({ ...problem, difficulty });
-      addQueryToHistory({ 
-        sql: `Generated ${difficulty} problem.`, 
-        status: 'generated_problem', 
-        feedback: problem.problemStatement 
+      addQueryToHistory({
+        sql: `Generated ${difficulty} problem: ${problem.problemStatement.substring(0,50)}...`,
+        status: 'generated_problem',
+        feedback: problem.problemStatement
       });
       setActiveMainTab('editor');
       toast({ title: "New Problem Generated!", description: "A new SQL practice problem is ready." });
@@ -141,39 +160,73 @@ export function QueryWorkspacePanel() {
     }
     
     setIsLoadingAi(true);
-    setValidationResult(null); // Clear previous results from editor tab view
-    // setShowSolution(false); // Not relevant here
+    setValidationResult(null);
     try {
       const result = await validateSqlQuery({
-        query: currentQuery,
-        schema: schemaString,
-        data: dataString,
+        userQuery: currentQuery,
+        dbSchema: schemaString,
+        sampleData: dataString,
+        expectedSolutionQuery: currentProblem?.expectedSolution,
       });
-      setValidationResult(result); // For immediate display in editor tab
+      setValidationResult(result);
+
+      let historyStatus: QueryHistoryItem['status'] = 'error_ai_processing';
+      let toastTitle = "Query Processed";
+      let toastDescription = result.syntaxFeedback;
+      let toastVariant: "default" | "destructive" = "default";
+
+      if (!result.isSyntaxValid) {
+        historyStatus = 'error_syntax';
+        toastTitle = "Syntax Error";
+        toastVariant = "destructive";
+      } else { // Syntax is valid
+        if (result.isSolutionCorrect === true) {
+          historyStatus = 'validated_correct_solution';
+          toastTitle = "Correct Solution!";
+          toastDescription = result.solutionFeedback || result.syntaxFeedback;
+        } else if (result.isSolutionCorrect === false) {
+          historyStatus = 'validated_incorrect_solution';
+          toastTitle = "Incorrect Solution";
+          toastDescription = result.solutionFeedback || "Check feedback for details.";
+          toastVariant = "destructive";
+        } else { // No solution to check against, or problem not active
+          historyStatus = 'validated_syntax_only';
+          toastTitle = "Syntax Valid";
+        }
+      }
+      
       addQueryToHistory({
         sql: currentQuery,
-        status: result.isValid ? 'validated_correct' : 'validated_incorrect',
-        feedback: result.feedback,
-        validationResult: result, 
+        status: historyStatus,
+        validationResult: result,
+        feedback: result.solutionFeedback || result.syntaxFeedback,
       });
-      setActiveMainTab('editor'); // Stay on editor tab to show immediate result
+
+      setActiveMainTab('editor');
       toast({
-        title: result.isValid ? "Query Processed" : "Query Needs Review",
-        description: result.feedback.substring(0, 100) + (result.feedback.length > 100 ? "..." : ""),
-        variant: result.isValid ? "default" : "destructive"
+        title: toastTitle,
+        description: (toastDescription || "Review the output for details.").substring(0, 100) + ( (toastDescription||"").length > 100 ? "..." : ""),
+        variant: toastVariant,
       });
+
     } catch (error) {
       console.error("Error validating query:", error);
-      const errorFeedback = error instanceof Error ? error.message : "An error occurred during AI validation. Please check the console for details or try again.";
-      toast({ title: "AI Error", description: errorFeedback, variant: "destructive" });
-      const errorResult: QueryValidationResult = {isValid: false, feedback: errorFeedback };
+      const errorFeedback = error instanceof Error ? error.message : "An unknown error occurred during AI validation.";
+      const errorResult: QueryValidationResult = {
+        isSyntaxValid: false, 
+        syntaxFeedback: errorFeedback,
+        isSolutionCorrect: null,
+        solutionFeedback: null,
+        resultSet: null
+      };
       setValidationResult(errorResult);
-      addQueryToHistory({ 
-        sql: currentQuery, 
-        status: 'error', 
+      addQueryToHistory({
+        sql: currentQuery,
+        status: 'error_ai_processing',
         feedback: 'AI validation service error.',
         validationResult: errorResult
       });
+      toast({ title: "AI Error", description: errorFeedback, variant: "destructive" });
     } finally {
       setIsLoadingAi(false);
     }
@@ -185,9 +238,27 @@ export function QueryWorkspacePanel() {
 
   const selectQueryFromHistory = (sql: string) => {
     setCurrentQuery(sql);
-    setActiveMainTab('editor'); 
+    setActiveMainTab('editor');
     toast({title: "Query Loaded", description: "Query loaded into editor from history."})
   };
+  
+  const getStatusIconAndColorForOutputTab = (status: QueryHistoryItem['status']) => {
+    switch (status) {
+        case 'validated_correct_solution':
+            return { icon: <CheckCircle className="mr-1.5 h-3.5 w-3.5" />, text: 'Correct Solution', color: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' };
+        case 'validated_incorrect_solution':
+            return { icon: <XCircle className="mr-1.5 h-3.5 w-3.5" />, text: 'Incorrect Solution', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-400' };
+        case 'validated_syntax_only':
+            return { icon: <CheckCircle className="mr-1.5 h-3.5 w-3.5" />, text: 'Syntax Valid', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400' };
+        case 'error_syntax':
+            return { icon: <XCircle className="mr-1.5 h-3.5 w-3.5" />, text: 'Syntax Error', color: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400' };
+        case 'error_ai_processing':
+            return { icon: <AlertCircle className="mr-1.5 h-3.5 w-3.5" />, text: 'AI Processing Error', color: 'bg-destructive/10 text-destructive dark:bg-destructive/30' };
+        default:
+            return { icon: <FileText className="mr-1.5 h-3.5 w-3.5" />, text: status.replace(/_/g, ' '), color: 'bg-muted text-muted-foreground' };
+    }
+};
+
 
   return (
     <Card className="h-full flex flex-col">
@@ -233,7 +304,7 @@ export function QueryWorkspacePanel() {
                   </Button>
                 </div>
                 {tables.length === 0 && <Alert variant="default" className="mt-2"><AlertDescription className="text-sm">Please define tables and columns in the Schema Editor to generate problems.</AlertDescription></Alert>}
-                {isLoadingAi && !currentProblem && ( 
+                {isLoadingAi && !currentProblem && (
                     <div className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating problem...</div>
                 )}
                 {currentProblem && (
@@ -268,7 +339,7 @@ export function QueryWorkspacePanel() {
                     <MonacoEditor
                       height="100%"
                       language="sql"
-                      theme={resolvedTheme === 'dark' ? 'vs-dark' : 'vs-light'}
+                      theme={activeMainTab === 'editor' && resolvedTheme === 'dark' ? 'vs-dark' : 'vs-light'}
                       value={currentQuery}
                       onChange={handleEditorChange}
                       options={{
@@ -289,11 +360,11 @@ export function QueryWorkspacePanel() {
               </CardContent>
             </Card>
             
-            {isLoadingAi && !validationResult && ( // Loading indicator for query processing
+            {isLoadingAi && !validationResult && ( 
                 <div className="text-sm text-muted-foreground flex items-center mt-4"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing query...</div>
             )}
-            {validationResult && ( // Display result directly in editor tab
-              <QueryResultDisplay result={validationResult} />
+            {validationResult && ( 
+              <QueryResultDisplay result={validationResult} expectedSolution={currentProblem?.expectedSolution} />
             )}
           </TabsContent>
           
@@ -323,26 +394,28 @@ export function QueryWorkspacePanel() {
                   <p className="text-sm text-muted-foreground text-center py-4">No query execution outputs to display yet. Run a query from the editor.</p>
                 )}
                 {queryHistory
-                  .filter(item => item.validationResult && (item.status === 'validated_correct' || item.status === 'validated_incorrect' || item.status === 'error'))
-                  .map(item => (
-                    <div key={item.id} className="space-y-2 border-b border-border/70 pb-4 last:border-b-0 last:pb-0">
-                      <div className="flex justify-between items-center text-xs text-muted-foreground mb-1">
-                        <span>{new Date(item.timestamp).toLocaleString()}</span>
-                        <span className={cn("flex items-center font-medium px-2 py-0.5 rounded-full text-xs",
-                            item.status === 'validated_correct' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400' :
-                            item.status === 'validated_incorrect' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400' :
-                            item.status === 'error' ? 'bg-destructive/10 text-destructive dark:bg-destructive/30' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-400'
-                          )}>
-                           {item.status === 'validated_correct' && <CheckCircle className="mr-1.5 h-3.5 w-3.5" />}
-                           {item.status === 'validated_incorrect' && <XCircle className="mr-1.5 h-3.5 w-3.5" />}
-                           {item.status === 'error' && <AlertCircle className="mr-1.5 h-3.5 w-3.5" />}
-                         {item.status.replace(/_/g, ' ')}
-                        </span>
+                  .filter(item => item.validationResult && (item.status !== 'generated_problem')) // Filter out problem generation logs
+                  .map(item => {
+                    const {icon: statusIcon, text: statusText, color: statusColor} = getStatusIconAndColorForOutputTab(item.status);
+                    // Find the problem associated with this query if it was a solution attempt
+                    // This is a simplification; a more robust way might be to link problem ID to query history item
+                    const problemForThisQuery = queryHistory.find(p => p.status === 'generated_problem' && p.timestamp < item.timestamp);
+                    const expectedSolutionForThisItem = problemForThisQuery?.validationResult?.isSyntaxValid === undefined ? problemForThisQuery?.feedback : undefined;
+
+
+                    return (
+                      <div key={item.id} className="space-y-2 border-b border-border/70 pb-4 last:border-b-0 last:pb-0">
+                        <div className="flex justify-between items-center text-xs text-muted-foreground mb-1">
+                          <span>{new Date(item.timestamp).toLocaleString()}</span>
+                          <span className={cn("flex items-center font-medium px-2 py-0.5 rounded-full text-xs", statusColor)}>
+                            {statusIcon} {statusText}
+                          </span>
+                        </div>
+                        <pre className="text-xs sm:text-sm whitespace-pre-wrap bg-muted/30 p-3 rounded font-mono mb-2 shadow-sm">{item.sql}</pre>
+                        <QueryResultDisplay result={item.validationResult!} expectedSolution={expectedSolutionForThisItem} />
                       </div>
-                      <pre className="text-xs sm:text-sm whitespace-pre-wrap bg-muted/30 p-3 rounded font-mono mb-2 shadow-sm">{item.sql}</pre>
-                      <QueryResultDisplay result={item.validationResult!} />
-                    </div>
-                  ))}
+                    );
+                  })}
               </CardContent>
             </Card>
           </TabsContent>
