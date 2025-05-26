@@ -1,103 +1,118 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  @apply leading-relaxed; /* Added for better text spacing */
 }
 
 @layer base {
   :root {
-    --background: 210 20% 98%; /* Very light, almost white, cool grey */
-    --foreground: 210 10% 23%; /* Dark slate grey for text */
+    --background: 210 100% 98%; /* Soft Gray */
+    --foreground: 222 47% 11%; /* Charcoal Black */
 
-    --card: 0 0% 100%; /* White cards */
-    --card-foreground: 210 10% 23%;
+    --card: 0 0% 100%; /* Snow White */
+    --card-foreground: 222 47% 11%; /* Charcoal Black */
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 210 10% 23%;
+    --popover: 0 0% 100%; /* Snow White */
+    --popover-foreground: 222 47% 11%; /* Charcoal Black */
 
-    --primary: 220 50% 45%; /* Deep, confident, slightly desaturated blue (Deep Sapphire) */
-    --primary-foreground: 210 40% 98%; /* White/very light grey text on primary */
+    --primary: 221 76% 52%; /* Sapphire Blue - Light Mode */
+    --primary-foreground: 210 40% 98%; /* Light text on primary */
 
-    --secondary: 210 15% 90%; /* Light grey for secondary elements */
-    --secondary-foreground: 210 10% 35%; /* Darker grey text on secondary */
+    --secondary: 262 82% 62%; /* Vivid Violet - Light Mode */
+    --secondary-foreground: 210 40% 98%; /* Light text on secondary */
 
-    --muted: 210 15% 85%; /* Muted elements (slightly darker than secondary) */
-    --muted-foreground: 210 10% 45%; /* Muted text */
-
-    --accent: 35 70% 50%; /* Muted Gold/Bronze */
+    --muted: 220 14% 91%; /* Light Gray for muted elements (borders/dividers) */
+    --muted-foreground: 221 30% 54%; /* Slate Gray for muted text */
+    
+    --accent: 262 82% 62%; /* Vivid Violet - Light Mode (using as main accent) */
     --accent-foreground: 210 40% 98%; /* Light text on accent */
 
-    --destructive: 0 70% 50%; /* A clearer red for destructive actions */
-    --destructive-foreground: 0 0% 100%; /* White text on destructive */
+    --destructive: 0 70% 50%; 
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 210 15% 88%; /* Subtle border, slightly darker than secondary background */
-    --input: 210 15% 92%; /* Light input background */
-    --ring: 220 50% 55%; /* Ring color (slightly lighter primary) */
+    --border: 220 13% 91%; /* Light Gray - E5E7EB */
+    --input: 220 13% 91%; /* Using border color for input background for subtlety */
+    --ring: 221 76% 47%; /* Darker Sapphire Blue for ring */
 
-    --chart-1: 220 50% 50%; /* Adjusted to match new primary */
-    --chart-2: 190 50% 45%; /* Tealish blue */
-    --chart-3: 35 65% 55%;  /* Lighter gold/orange */
-    --chart-4: 210 30% 60%; /* Muted blue-grey */
-    --chart-5: 0 0% 40%;    /* Neutral Grey */
+    /* Custom Semantic Colors */
+    --success: 158 84% 38%; /* Emerald Green - Light Mode */
+    --success-foreground: 210 40% 98%;
+    --warning: 35 92% 51%; /* Amber Gold - Light Mode */
+    --warning-foreground: 222 47% 11%;
+
+    --chart-1: 221 76% 52%; 
+    --chart-2: 262 82% 62%; 
+    --chart-3: 158 84% 38%;  
+    --chart-4: 35 92% 51%; 
+    --chart-5: 221 30% 54%;    
     --radius: 0.5rem;
 
-    /* Sidebar variables */
-    --sidebar-background: 215 25% 95%; /* Slightly different off-white/light blue-grey */
-    --sidebar-foreground: 220 25% 25%; /* Darker text for sidebar */
-    --sidebar-primary: 220 50% 45%; /* Same as main primary */
+    /* Sidebar variables (using card colors for consistency) */
+    --sidebar-background: 0 0% 100%; 
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 221 76% 52%; 
     --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 35 70% 50%; /* Same as main accent */
+    --sidebar-accent: 262 82% 62%; 
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 20% 85%; /* Border for sidebar elements */
-    --sidebar-ring: 220 50% 55%; /* Ring for sidebar focus */
+    --sidebar-border: 220 13% 91%; 
+    --sidebar-ring: 221 76% 47%; 
   }
 
   .dark {
-    --background: 220 15% 8%; /* Even darker, near-black blue-grey */
-    --foreground: 210 20% 90%; /* Slightly brighter, cleaner light grey for text */
+    --background: 222 47% 8%; /* Midnight Black */
+    --foreground: 210 20% 98%; /* Pure White */
 
-    --card: 220 15% 12%; /* Darker card, distinct from background */
-    --card-foreground: 210 20% 90%;
+    --card: 220 27% 11%; /* Charcoal Slate */
+    --card-foreground: 210 20% 98%; /* Pure White */
 
-    --popover: 220 15% 12%;
-    --popover-foreground: 210 20% 90%;
+    --popover: 220 27% 11%; /* Charcoal Slate */
+    --popover-foreground: 210 20% 98%; /* Pure White */
 
-    --primary: 210 70% 60%; /* Cool, sophisticated blue */
-    --primary-foreground: 210 20% 98%; /* Very light text on primary for strong contrast */
+    --primary: 217 91% 60%; /* Sapphire Blue */
+    --primary-foreground: 210 20% 98%;
 
-    --secondary: 220 15% 15%; /* Darker secondary elements */
-    --secondary-foreground: 210 15% 75%; 
+    --secondary: 263 84% 67%; /* Vivid Violet */
+    --secondary-foreground: 210 20% 98%;
 
-    --muted: 220 15% 18%; /* Muted elements */
-    --muted-foreground: 210 15% 65%; 
-
-    --accent: 190 70% 55%; /* Cool, elegant teal/cyan accent */
-    --accent-foreground: 190 15% 10%; /* Very dark text on accent */
+    --muted: 215 25% 23%; /* Slate Gray for muted elements (borders/dividers) */
+    --muted-foreground: 215 20% 65%; /* Cool Gray for muted text */
     
-    --destructive: 0 65% 50%; /* Slightly less bright red */
+    --accent: 263 84% 67%; /* Vivid Violet (using as main accent) */
+    --accent-foreground: 210 20% 98%; 
+    
+    --destructive: 0 70% 55%; 
     --destructive-foreground: 0 0% 95%;
 
-    --border: 220 15% 20%; /* Darker borders */
-    --input: 220 15% 18%; /* Darker inputs */
-    --ring: 210 70% 65%; /* Ring related to new primary */
+    --border: 215 25% 23%; /* Slate Gray - 2F3B46 */
+    --input: 215 25% 23%; /* Using border color for input background */
+    --ring: 217 91% 55%; /* Lighter Sapphire Blue for ring */
 
-    --chart-1: 210 70% 55%; /* Primary variant */
-    --chart-2: 190 70% 50%; /* Accent variant */
-    --chart-3: 30 70% 60%;  /* Contrasting warm: muted orange/gold */
-    --chart-4: 220 20% 65%; /* Lighter Grey-Blue */
-    --chart-5: 210 10% 50%; /* Neutral mid-grey */
+    /* Custom Semantic Colors */
+    --success: 159 70% 45%; /* Emerald Green */
+    --success-foreground: 210 20% 98%;
+    --warning: 38 92% 50%; /* Amber Gold */
+    --warning-foreground: 210 20% 98%;
 
-    /* Sidebar variables - Dark Mode */
-    --sidebar-background: 220 15% 10%; /* Slightly different dark blue-grey */
-    --sidebar-foreground: 210 20% 88%;
-    --sidebar-primary: 210 70% 60%; /* Same as main dark primary */
+
+    --chart-1: 217 91% 60%; 
+    --chart-2: 263 84% 67%; 
+    --chart-3: 159 70% 45%;  
+    --chart-4: 38 92% 50%; 
+    --chart-5: 215 20% 65%; 
+
+    /* Sidebar variables (using card colors for consistency) */
+    --sidebar-background: 220 27% 11%; 
+    --sidebar-foreground: 210 20% 98%;
+    --sidebar-primary: 217 91% 60%; 
     --sidebar-primary-foreground: 210 20% 98%;
-    --sidebar-accent: 190 70% 55%; /* Same as main dark accent */
-    --sidebar-accent-foreground: 190 15% 10%;
-    --sidebar-border: 220 15% 18%;
-    --sidebar-ring: 210 70% 65%;
+    --sidebar-accent: 263 84% 67%; 
+    --sidebar-accent-foreground: 210 20% 98%;
+    --sidebar-border: 215 25% 23%; 
+    --sidebar-ring: 217 91% 55%; 
   }
 }
 
@@ -107,5 +122,7 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }

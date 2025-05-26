@@ -46,7 +46,7 @@ export function SchemaEditorPanel() {
   const { toast } = useToast();
 
   const [newTableName, setNewTableName] = useState('');
-  const [editingTableId, setEditingTableId] = useState<string | null>(null);
+  const [editingTableId, setEditingTableId] = useState<string | null>(null); // Tracks which table's "add column" form is active
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnType, setNewColumnType] = useState<SqlDataType>('TEXT');
   const [newColumnIsPrimaryKey, setNewColumnIsPrimaryKey] = useState(false);
@@ -56,6 +56,7 @@ export function SchemaEditorPanel() {
   
   const [currentSampleDataRow, setCurrentSampleDataRow] = useState<SampleRow>({});
 
+  // Function to reset inputs specifically for the "Add Column" form
   const resetColumnInputs = () => {
     setNewColumnName('');
     setNewColumnType('TEXT');
@@ -94,9 +95,9 @@ export function SchemaEditorPanel() {
     if (selectedTableIdForData === tableId) {
       setSelectedTableIdForData(null);
     }
-    if (editingTableId === tableId) {
+    if (editingTableId === tableId) { // If the removed table was being edited for new columns
       setEditingTableId(null);
-      resetColumnInputs();
+      resetColumnInputs(); // Reset inputs as the context is gone
     }
     toast({ title: "Success", description: "Table removed." });
   };
@@ -111,7 +112,7 @@ export function SchemaEditorPanel() {
         if (table.id === tableId) {
           if (table.columns.find(col => col.name.toLowerCase() === newColumnName.trim().toLowerCase())) {
             toast({ title: "Error", description: "A column with this name already exists in this table.", variant: "destructive" });
-            return table;
+            return table; // Return table unmodified
           }
           const newColumn: ColumnDefinition = {
             id: uuidv4(),
@@ -127,7 +128,7 @@ export function SchemaEditorPanel() {
         return table;
       })
     );
-    resetColumnInputs(); // Reset all column inputs, editingTableId remains so user can add another col to same table
+    resetColumnInputs(); // Reset inputs for the next column, editingTableId remains so user can add another col to same table
     toast({ title: "Success", description: `Column "${newColumnName.trim()}" added.` });
   };
 
@@ -139,7 +140,6 @@ export function SchemaEditorPanel() {
           : table
       )
     );
-    // Also remove data for this column from sampleData
     setSampleData(prevSampleData => {
       const updatedSampleData = { ...prevSampleData };
       if (updatedSampleData[tableId]) {
@@ -156,22 +156,30 @@ export function SchemaEditorPanel() {
     });
     toast({ title: "Success", description: "Column removed." });
   };
+  
+  const handleFocusAddColumn = (tableId: string) => {
+    if (editingTableId !== tableId) {
+      resetColumnInputs(); // Reset if switching to a new table's add column form
+    }
+    setEditingTableId(tableId);
+  };
+
 
   const handleAddSampleRow = () => {
     if (!selectedTableIdForData) return;
     const table = tables.find(t => t.id === selectedTableIdForData);
     if (!table) return;
 
-    const newRow = { ...currentSampleDataRow };
+    const newRowWithNulls = { ...currentSampleDataRow };
     table.columns.forEach(col => {
-      if (newRow[col.name] === undefined) {
-        newRow[col.name] = null; 
+      if (!(col.name in newRowWithNulls) || newRowWithNulls[col.name] === '') { // Also treat empty string as null for sample data
+        newRowWithNulls[col.name] = null; 
       }
     });
 
     setSampleData(prev => ({
       ...prev,
-      [selectedTableIdForData]: [...(prev[selectedTableIdForData] || []), newRow],
+      [selectedTableIdForData]: [...(prev[selectedTableIdForData] || []), newRowWithNulls],
     }));
     setCurrentSampleDataRow({}); 
     toast({ title: "Success", description: "Sample row added." });
@@ -184,111 +192,109 @@ export function SchemaEditorPanel() {
   const selectedTableForData = tables.find(t => t.id === selectedTableIdForData);
 
   return (
-    <Card className="h-full flex flex-col shadow-lg rounded-lg">
-      <CardHeader className="border-b">
-        <CardTitle className="flex items-center text-xl">
+    <Card className="h-full flex flex-col">
+      <CardHeader>
+        <CardTitle className="flex items-center">
           <DatabaseBackup className="mr-2 h-6 w-6 text-primary" />
           Database Designer
         </CardTitle>
         <CardDescription>Define your database schema and add sample data.</CardDescription>
       </CardHeader>
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'schema' | 'data')} className="flex-grow flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 m-4">
+        <TabsList className="grid w-full grid-cols-2 mx-2 my-4 md:m-4 self-center max-w-md">
           <TabsTrigger value="schema">Schema Editor</TabsTrigger>
           <TabsTrigger value="data">Data Editor</TabsTrigger>
         </TabsList>
-        <ScrollArea className="flex-grow p-4 pt-0">
-          <TabsContent value="schema" className="mt-0">
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Add New Table</CardTitle>
+        <ScrollArea className="flex-grow px-2 md:px-0 pb-4">
+          <TabsContent value="schema" className="mt-0 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Add New Table</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Label htmlFor="new-table-name" className="text-sm">Table Name</Label>
+                <div className="flex space-x-2">
+                  <Input
+                    id="new-table-name"
+                    value={newTableName}
+                    onChange={e => setNewTableName(e.target.value)}
+                    placeholder="e.g., Customers"
+                    className="h-10 text-sm"
+                  />
+                  <Button onClick={handleAddTable} variant="outline" size="default">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Table
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {tables.length === 0 && (
+                 <p className="text-sm text-muted-foreground text-center py-6">No tables defined yet. Add a table to get started.</p>
+            )}
+
+            {tables.map(table => (
+              <Card key={table.id} className="overflow-hidden">
+                <CardHeader className="bg-muted/30 flex flex-row items-center justify-between">
+                  <CardTitle className="text-md flex items-center">
+                    <TableIcon className="mr-2 h-5 w-5" /> {table.name}
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => handleRemoveTable(table.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  <Label htmlFor="new-table-name">Table Name</Label>
-                  <div className="flex space-x-2">
-                    <Input
-                      id="new-table-name"
-                      value={newTableName}
-                      onChange={e => setNewTableName(e.target.value)}
-                      placeholder="e.g., Customers"
-                    />
-                    <Button onClick={handleAddTable} variant="outline">
-                      <PlusCircle className="mr-2 h-4 w-4" /> Add Table
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {tables.length === 0 && (
-                 <p className="text-sm text-muted-foreground text-center py-4">No tables defined yet. Add a table to get started.</p>
-              )}
-
-              {tables.map(table => (
-                <Card key={table.id} className="overflow-hidden">
-                  <CardHeader className="bg-muted/50 flex flex-row items-center justify-between py-3 px-4">
-                    <CardTitle className="text-md flex items-center">
-                      <TableIcon className="mr-2 h-5 w-5" /> {table.name}
-                    </CardTitle>
-                    <Button variant="ghost" size="sm" onClick={() => handleRemoveTable(table.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="p-4 space-y-3">
-                    {table.columns.length === 0 && (
-                      <p className="text-xs text-muted-foreground">No columns defined for this table.</p>
-                    )}
-                    {table.columns.map(col => (
-                      <div key={col.id} className="flex items-center justify-between p-2 bg-background rounded border">
-                        <div className="flex items-center">
-                           <ColumnsIcon className="mr-2 h-4 w-4 text-muted-foreground"/>
-                           <span className="font-mono text-xs">{col.name}</span>
-                           <span className="ml-2 text-xs text-muted-foreground">({col.type}{getColumnConstraintString(col)})</span>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveColumn(table.id, col.id)}>
-                          <Trash2 className="h-3 w-3 text-destructive" />
-                        </Button>
+                <CardContent className="space-y-3">
+                  {table.columns.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-2">No columns defined for this table.</p>
+                  )}
+                  {table.columns.map(col => (
+                    <div key={col.id} className="flex items-center justify-between p-2.5 bg-muted/20 rounded border">
+                      <div className="flex items-center overflow-hidden">
+                         <ColumnsIcon className="mr-2 h-4 w-4 text-muted-foreground flex-shrink-0"/>
+                         <span className="font-mono text-sm truncate" title={col.name}>{col.name}</span>
+                         <span className="ml-2 text-xs text-muted-foreground whitespace-nowrap">{getColumnConstraintString(col)}</span>
                       </div>
-                    ))}
-                    <div className="mt-2 p-3 border rounded-md shadow-sm bg-background">
-                      <Label className="text-xs font-medium block mb-1.5">Add New Column to "{table.name}"</Label>
-                      <div className="flex items-end space-x-2 mb-2">
-                        <div className="flex-grow">
-                          <Label htmlFor={`col-name-${table.id}`} className="sr-only">Column Name</Label>
-                          <Input
-                            id={`col-name-${table.id}`}
-                            value={editingTableId === table.id ? newColumnName : ''}
-                            onFocus={() => { 
-                              setEditingTableId(table.id); 
-                              if(editingTableId !== table.id) resetColumnInputs();
-                            }}
-                            onChange={e => setNewColumnName(e.target.value)}
-                            placeholder="Column Name"
-                            className="h-8 text-xs"
-                          />
-                        </div>
-                        <div className="flex-grow">
-                          <Label htmlFor={`col-type-${table.id}`} className="sr-only">Column Type</Label>
-                          <Select
-                            value={editingTableId === table.id ? newColumnType : 'TEXT'}
-                            onValueChange={(value: SqlDataType) => {setNewColumnType(value); setEditingTableId(table.id);}}
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {SQL_DATA_TYPES.map(type => (
-                                <SelectItem key={type} value={type} className="text-xs">
-                                  {type}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleRemoveColumn(table.id, col.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  <div className="mt-3 p-3 border rounded-md shadow-sm bg-background">
+                    <Label className="text-sm font-medium block mb-2">Add New Column to "{table.name}"</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                      <div>
+                        <Label htmlFor={`col-name-${table.id}`} className="text-xs">Column Name</Label>
+                        <Input
+                          id={`col-name-${table.id}`}
+                          value={editingTableId === table.id ? newColumnName : ''}
+                          onFocus={() => handleFocusAddColumn(table.id)}
+                          onChange={e => setNewColumnName(e.target.value)}
+                          placeholder="e.g., UserID"
+                          className="h-10 text-sm mt-1"
+                        />
                       </div>
-                      
-                      <div className="space-y-1.5 mb-2">
-                        <Label className="text-xs font-medium">Constraints:</Label>
+                      <div>
+                        <Label htmlFor={`col-type-${table.id}`} className="text-xs">Column Type</Label>
+                        <Select
+                          value={editingTableId === table.id ? newColumnType : 'TEXT'}
+                          onValueChange={(value: SqlDataType) => {setNewColumnType(value); setEditingTableId(table.id);}}
+                        >
+                          <SelectTrigger className="h-10 text-sm mt-1 w-full">
+                            <SelectValue placeholder="Type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SQL_DATA_TYPES.map(type => (
+                              <SelectItem key={type} value={type} className="text-sm">
+                                {type}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2 mb-3">
+                      <Label className="text-sm font-medium">Constraints:</Label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             id={`col-pk-${table.id}`}
@@ -296,7 +302,7 @@ export function SchemaEditorPanel() {
                             onCheckedChange={(checked) => setNewColumnIsPrimaryKey(!!checked)}
                             disabled={editingTableId !== table.id}
                           />
-                          <Label htmlFor={`col-pk-${table.id}`} className="text-xs font-normal">Primary Key</Label>
+                          <Label htmlFor={`col-pk-${table.id}`} className="text-sm font-normal">Primary Key</Label>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Checkbox
@@ -305,7 +311,7 @@ export function SchemaEditorPanel() {
                             onCheckedChange={(checked) => setNewColumnIsNotNull(!!checked)}
                             disabled={editingTableId !== table.id}
                           />
-                          <Label htmlFor={`col-nn-${table.id}`} className="text-xs font-normal">Not Null</Label>
+                          <Label htmlFor={`col-nn-${table.id}`} className="text-sm font-normal">Not Null</Label>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Checkbox
@@ -314,128 +320,126 @@ export function SchemaEditorPanel() {
                             onCheckedChange={(checked) => setNewColumnIsUnique(!!checked)}
                             disabled={editingTableId !== table.id}
                           />
-                          <Label htmlFor={`col-uq-${table.id}`} className="text-xs font-normal">Unique</Label>
-                        </div>
-                        <div>
-                          <Label htmlFor={`col-check-${table.id}`} className="text-xs font-normal">CHECK Constraint</Label>
-                          <Input
-                            id={`col-check-${table.id}`}
-                            value={editingTableId === table.id ? newColumnCheckConstraint : ''}
-                            onChange={e => setNewColumnCheckConstraint(e.target.value)}
-                            placeholder="e.g. Age > 18"
-                            className="h-8 text-xs mt-1"
-                            disabled={editingTableId !== table.id}
-                          />
+                          <Label htmlFor={`col-uq-${table.id}`} className="text-sm font-normal">Unique</Label>
                         </div>
                       </div>
-
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="h-8 text-xs" 
-                        onClick={() => handleAddColumn(table.id)}
-                        disabled={editingTableId !== table.id || !newColumnName.trim()}
-                      >
-                        <PlusCircle className="mr-1 h-3 w-3" /> Add Column
-                      </Button>
+                      <div className="pt-1">
+                        <Label htmlFor={`col-check-${table.id}`} className="text-xs">CHECK Constraint</Label>
+                        <Input
+                          id={`col-check-${table.id}`}
+                          value={editingTableId === table.id ? newColumnCheckConstraint : ''}
+                          onChange={e => setNewColumnCheckConstraint(e.target.value)}
+                          placeholder="e.g. Age > 18"
+                          className="h-10 text-sm mt-1"
+                          disabled={editingTableId !== table.id}
+                        />
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleAddColumn(table.id)}
+                      disabled={editingTableId !== table.id || !newColumnName.trim()}
+                      className="text-sm"
+                    >
+                      <PlusCircle className="mr-1.5 h-4 w-4" /> Add Column
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </TabsContent>
-          <TabsContent value="data" className="mt-0">
-            <div className="space-y-4">
+          <TabsContent value="data" className="mt-0 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Select Table for Data Entry</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tables.length === 0 ? (
+                   <p className="text-sm text-muted-foreground">Define tables in the Schema Editor first.</p>
+                ) : (
+                <Select
+                  value={selectedTableIdForData || ''}
+                  onValueChange={setSelectedTableIdForData}
+                >
+                  <SelectTrigger className="h-10 text-sm">
+                    <SelectValue placeholder="Select a table" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tables.map(table => (
+                      <SelectItem key={table.id} value={table.id} className="text-sm">
+                        {table.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                )}
+              </CardContent>
+            </Card>
+
+            {selectedTableForData && selectedTableForData.columns.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Select Table for Data Entry</CardTitle>
+                  <CardTitle className="text-lg">Add Sample Row to "{selectedTableForData.name}"</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {selectedTableForData.columns.map(col => (
+                    <div key={col.id} className="space-y-1.5">
+                      <Label htmlFor={`sample-${col.id}`} className="text-sm">
+                        {col.name} <span className="text-xs text-muted-foreground">({col.type})</span>
+                      </Label>
+                      <Input
+                        id={`sample-${col.id}`}
+                        value={currentSampleDataRow[col.name]?.toString() ?? ''}
+                        onChange={e => handleSampleDataInputChange(col.name, e.target.value)}
+                        placeholder={`Enter ${col.type.toLowerCase()} value`}
+                        className="h-10 text-sm"
+                      />
+                    </div>
+                  ))}
+                  <Button onClick={handleAddSampleRow} variant="outline" size="default">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Row
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            
+            {selectedTableForData && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Current Data for "{selectedTableForData.name}"</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {tables.length === 0 ? (
-                     <p className="text-sm text-muted-foreground">Define tables in the Schema Editor first.</p>
+                  {(sampleData[selectedTableForData.id]?.length ?? 0) === 0 ? (
+                    <p className="text-sm text-muted-foreground">No sample data added for this table yet.</p>
                   ) : (
-                  <Select
-                    value={selectedTableIdForData || ''}
-                    onValueChange={setSelectedTableIdForData}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a table" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tables.map(table => (
-                        <SelectItem key={table.id} value={table.id}>
-                          {table.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <div className="overflow-x-auto max-h-80 border rounded-md">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted sticky top-0">
+                          <tr>
+                            {selectedTableForData.columns.map(col => (
+                              <th key={col.id} className="p-3 text-left font-semibold">{col.name}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sampleData[selectedTableForData.id]?.map((row, rowIndex) => (
+                            <tr key={rowIndex} className="border-b last:border-b-0 hover:bg-muted/20">
+                              {selectedTableForData.columns.map(col => (
+                                <td key={col.id} className="p-3 whitespace-nowrap">
+                                  {String(row[col.name] ?? 'NULL')}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </CardContent>
               </Card>
-
-              {selectedTableForData && selectedTableForData.columns.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Add Sample Row to "{selectedTableForData.name}"</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {selectedTableForData.columns.map(col => (
-                      <div key={col.id} className="space-y-1">
-                        <Label htmlFor={`sample-${col.id}`} className="text-xs">
-                          {col.name} <span className="text-muted-foreground">({col.type})</span>
-                        </Label>
-                        <Input
-                          id={`sample-${col.id}`}
-                          value={currentSampleDataRow[col.name]?.toString() ?? ''}
-                          onChange={e => handleSampleDataInputChange(col.name, e.target.value)}
-                          placeholder={`Enter ${col.type.toLowerCase()} value`}
-                          className="text-sm"
-                        />
-                      </div>
-                    ))}
-                    <Button onClick={handleAddSampleRow} variant="outline">
-                      <PlusCircle className="mr-2 h-4 w-4" /> Add Row
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-              
-              {selectedTableForData && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Current Data for "{selectedTableForData.name}"</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {(sampleData[selectedTableForData.id]?.length ?? 0) === 0 ? (
-                      <p className="text-sm text-muted-foreground">No sample data added for this table yet.</p>
-                    ) : (
-                      <div className="overflow-x-auto max-h-60 border rounded-md">
-                        <table className="w-full text-sm">
-                          <thead className="bg-muted sticky top-0">
-                            <tr>
-                              {selectedTableForData.columns.map(col => (
-                                <th key={col.id} className="p-2 text-left font-medium">{col.name}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {sampleData[selectedTableForData.id]?.map((row, rowIndex) => (
-                              <tr key={rowIndex} className="border-b last:border-b-0">
-                                {selectedTableForData.columns.map(col => (
-                                  <td key={col.id} className="p-2 whitespace-nowrap">
-                                    {String(row[col.name] ?? 'NULL')}
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+            )}
           </TabsContent>
         </ScrollArea>
       </Tabs>
