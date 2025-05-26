@@ -1,3 +1,4 @@
+
 export type SqlDataType =
   | 'TEXT'
   | 'VARCHAR(255)'
@@ -27,6 +28,10 @@ export interface ColumnDefinition {
   id: string;
   name: string;
   type: SqlDataType;
+  isPrimaryKey?: boolean;
+  isNotNull?: boolean;
+  isUnique?: boolean;
+  checkConstraint?: string; // e.g., "Age > 18"
 }
 
 export interface TableDefinition {

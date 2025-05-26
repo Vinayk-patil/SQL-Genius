@@ -1,4 +1,5 @@
-import type { TableDefinition, SampleData, SampleRow } from '@/types';
+
+import type { TableDefinition, SampleData, SampleRow, ColumnDefinition } from '@/types';
 
 export function formatSchemaForAI(tables: TableDefinition[]): string {
   if (!tables || tables.length === 0) {
@@ -10,7 +11,16 @@ export function formatSchemaForAI(tables: TableDefinition[]): string {
         return `-- Table "${table.name}" has no columns defined.`;
       }
       const columns = table.columns
-        .map(col => `  "${col.name}" ${col.type}`)
+        .map(col => {
+          let colDef = `  "${col.name}" ${col.type}`;
+          if (col.isPrimaryKey) colDef += ' PRIMARY KEY';
+          // Note: PRIMARY KEY often implies NOT NULL and UNIQUE in SQL.
+          // Explicitly adding them if checked, for clarity or specific SQL dialect needs.
+          if (col.isNotNull && !col.isPrimaryKey) colDef += ' NOT NULL'; 
+          if (col.isUnique && !col.isPrimaryKey) colDef += ' UNIQUE';
+          if (col.checkConstraint) colDef += ` CHECK (${col.checkConstraint})`;
+          return colDef;
+        })
         .join(',\n');
       return `CREATE TABLE "${table.name}" (\n${columns}\n);`;
     })
@@ -32,10 +42,9 @@ function escapeSqlValue(value: string | number | boolean | null, type: string): 
     const lowerStrVal = String(value).toLowerCase();
     if (lowerStrVal === 'true' || lowerStrVal === '1') return 'TRUE';
     if (lowerStrVal === 'false' || lowerStrVal === '0') return 'FALSE';
-    return 'NULL'; // Or handle as error
+    return 'NULL'; 
   }
   
-  // For TEXT, VARCHAR, DATE, DATETIME, etc., treat as string
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 

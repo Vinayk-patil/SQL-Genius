@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState } from 'react';
@@ -7,6 +8,7 @@ import { SQL_DATA_TYPES } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -20,6 +22,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PlusCircle, Trash2, Table as TableIcon, Columns as ColumnsIcon, DatabaseBackup } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { useToast } from '@/hooks/use-toast';
+
+function getColumnConstraintString(col: ColumnDefinition): string {
+  const parts: string[] = [];
+  if (col.isPrimaryKey) parts.push('PK');
+  if (col.isNotNull) parts.push('NOT NULL');
+  if (col.isUnique) parts.push('UNIQUE');
+  if (col.checkConstraint) parts.push(`CHECK(${col.checkConstraint})`);
+  return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+}
 
 export function SchemaEditorPanel() {
   const {
@@ -38,8 +49,21 @@ export function SchemaEditorPanel() {
   const [editingTableId, setEditingTableId] = useState<string | null>(null);
   const [newColumnName, setNewColumnName] = useState('');
   const [newColumnType, setNewColumnType] = useState<SqlDataType>('TEXT');
+  const [newColumnIsPrimaryKey, setNewColumnIsPrimaryKey] = useState(false);
+  const [newColumnIsNotNull, setNewColumnIsNotNull] = useState(false);
+  const [newColumnIsUnique, setNewColumnIsUnique] = useState(false);
+  const [newColumnCheckConstraint, setNewColumnCheckConstraint] = useState('');
   
   const [currentSampleDataRow, setCurrentSampleDataRow] = useState<SampleRow>({});
+
+  const resetColumnInputs = () => {
+    setNewColumnName('');
+    setNewColumnType('TEXT');
+    setNewColumnIsPrimaryKey(false);
+    setNewColumnIsNotNull(false);
+    setNewColumnIsUnique(false);
+    setNewColumnCheckConstraint('');
+  };
 
   const handleAddTable = () => {
     if (!newTableName.trim()) {
@@ -72,6 +96,7 @@ export function SchemaEditorPanel() {
     }
     if (editingTableId === tableId) {
       setEditingTableId(null);
+      resetColumnInputs();
     }
     toast({ title: "Success", description: "Table removed." });
   };
@@ -92,14 +117,17 @@ export function SchemaEditorPanel() {
             id: uuidv4(),
             name: newColumnName.trim(),
             type: newColumnType,
+            isPrimaryKey: newColumnIsPrimaryKey,
+            isNotNull: newColumnIsNotNull,
+            isUnique: newColumnIsUnique,
+            checkConstraint: newColumnCheckConstraint.trim() ? newColumnCheckConstraint.trim() : undefined,
           };
           return { ...table, columns: [...table.columns, newColumn] };
         }
         return table;
       })
     );
-    setNewColumnName('');
-    setNewColumnType('TEXT');
+    resetColumnInputs(); // Reset all column inputs, editingTableId remains so user can add another col to same table
     toast({ title: "Success", description: `Column "${newColumnName.trim()}" added.` });
   };
 
@@ -134,12 +162,10 @@ export function SchemaEditorPanel() {
     const table = tables.find(t => t.id === selectedTableIdForData);
     if (!table) return;
 
-    // Basic validation: check if all required fields (columns) are present
-    // For simplicity, not enforcing strict non-null, but can be added
     const newRow = { ...currentSampleDataRow };
     table.columns.forEach(col => {
       if (newRow[col.name] === undefined) {
-        newRow[col.name] = null; // Default to null if not provided
+        newRow[col.name] = null; 
       }
     });
 
@@ -147,7 +173,7 @@ export function SchemaEditorPanel() {
       ...prev,
       [selectedTableIdForData]: [...(prev[selectedTableIdForData] || []), newRow],
     }));
-    setCurrentSampleDataRow({}); // Reset form
+    setCurrentSampleDataRow({}); 
     toast({ title: "Success", description: "Sample row added." });
   };
   
@@ -217,7 +243,7 @@ export function SchemaEditorPanel() {
                         <div className="flex items-center">
                            <ColumnsIcon className="mr-2 h-4 w-4 text-muted-foreground"/>
                            <span className="font-mono text-xs">{col.name}</span>
-                           <span className="ml-2 text-xs text-muted-foreground">({col.type})</span>
+                           <span className="ml-2 text-xs text-muted-foreground">({col.type}{getColumnConstraintString(col)})</span>
                         </div>
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleRemoveColumn(table.id, col.id)}>
                           <Trash2 className="h-3 w-3 text-destructive" />
@@ -225,14 +251,17 @@ export function SchemaEditorPanel() {
                       </div>
                     ))}
                     <div className="mt-2 p-3 border rounded-md shadow-sm bg-background">
-                      <Label className="text-xs font-medium block mb-1">Add New Column</Label>
-                      <div className="flex items-end space-x-2">
+                      <Label className="text-xs font-medium block mb-1.5">Add New Column to "{table.name}"</Label>
+                      <div className="flex items-end space-x-2 mb-2">
                         <div className="flex-grow">
                           <Label htmlFor={`col-name-${table.id}`} className="sr-only">Column Name</Label>
                           <Input
                             id={`col-name-${table.id}`}
                             value={editingTableId === table.id ? newColumnName : ''}
-                            onFocus={() => { setEditingTableId(table.id); if(editingTableId !== table.id) { setNewColumnName(''); setNewColumnType('TEXT');}}}
+                            onFocus={() => { 
+                              setEditingTableId(table.id); 
+                              if(editingTableId !== table.id) resetColumnInputs();
+                            }}
                             onChange={e => setNewColumnName(e.target.value)}
                             placeholder="Column Name"
                             className="h-8 text-xs"
@@ -256,10 +285,59 @@ export function SchemaEditorPanel() {
                             </SelectContent>
                           </Select>
                         </div>
-                        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => handleAddColumn(table.id)}>
-                          <PlusCircle className="mr-1 h-3 w-3" /> Add
-                        </Button>
                       </div>
+                      
+                      <div className="space-y-1.5 mb-2">
+                        <Label className="text-xs font-medium">Constraints:</Label>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`col-pk-${table.id}`}
+                            checked={editingTableId === table.id ? newColumnIsPrimaryKey : false}
+                            onCheckedChange={(checked) => setNewColumnIsPrimaryKey(!!checked)}
+                            disabled={editingTableId !== table.id}
+                          />
+                          <Label htmlFor={`col-pk-${table.id}`} className="text-xs font-normal">Primary Key</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`col-nn-${table.id}`}
+                            checked={editingTableId === table.id ? newColumnIsNotNull : false}
+                            onCheckedChange={(checked) => setNewColumnIsNotNull(!!checked)}
+                            disabled={editingTableId !== table.id}
+                          />
+                          <Label htmlFor={`col-nn-${table.id}`} className="text-xs font-normal">Not Null</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`col-uq-${table.id}`}
+                            checked={editingTableId === table.id ? newColumnIsUnique : false}
+                            onCheckedChange={(checked) => setNewColumnIsUnique(!!checked)}
+                            disabled={editingTableId !== table.id}
+                          />
+                          <Label htmlFor={`col-uq-${table.id}`} className="text-xs font-normal">Unique</Label>
+                        </div>
+                        <div>
+                          <Label htmlFor={`col-check-${table.id}`} className="text-xs font-normal">CHECK Constraint</Label>
+                          <Input
+                            id={`col-check-${table.id}`}
+                            value={editingTableId === table.id ? newColumnCheckConstraint : ''}
+                            onChange={e => setNewColumnCheckConstraint(e.target.value)}
+                            placeholder="e.g. Age > 18"
+                            className="h-8 text-xs mt-1"
+                            disabled={editingTableId !== table.id}
+                          />
+                        </div>
+                      </div>
+
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="h-8 text-xs" 
+                        onClick={() => handleAddColumn(table.id)}
+                        disabled={editingTableId !== table.id || !newColumnName.trim()}
+                      >
+                        <PlusCircle className="mr-1 h-3 w-3" /> Add Column
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -345,7 +423,7 @@ export function SchemaEditorPanel() {
                               <tr key={rowIndex} className="border-b last:border-b-0">
                                 {selectedTableForData.columns.map(col => (
                                   <td key={col.id} className="p-2 whitespace-nowrap">
-                                    {row[col.name]?.toString() ?? 'NULL'}
+                                    {String(row[col.name] ?? 'NULL')}
                                   </td>
                                 ))}
                               </tr>
