@@ -10,13 +10,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Lightbulb, Play, History, Sparkles, Loader2, Trash2, ClipboardCopy } from 'lucide-react';
+import { Lightbulb, Play, History, Sparkles, Loader2, Trash2, ClipboardCopy, FileText } from 'lucide-react';
 import { generateSqlPracticeProblem } from '@/ai/flows/generate-sql-practice-problem';
 import { validateSqlQuery } from '@/ai/flows/validate-sql-query';
 import { formatSchemaForAI, formatSampleDataForAI } from '@/lib/sql-formatter';
 import type { PracticeProblem, QueryValidationResult, QueryHistoryItem } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { QueryResultDisplay } from './QueryResultDisplay'; // New Import
+import { QueryResultDisplay } from './QueryResultDisplay'; 
 
 // Dynamically import Monaco Editor
 const MonacoEditor = dynamic(() => import('@monaco-editor/react').then(mod => mod.default), {
@@ -61,7 +61,7 @@ function QueryHistoryDisplay({ history, onSelectQuery, onClearHistory }: QueryHi
                 item.status === 'validated_incorrect' ? 'text-red-600' :
                 item.status === 'error' ? 'text-destructive' : 'text-blue-600'
               }`}>
-                {item.status.replace('_', ' ')}
+                {item.status.replace(/_/g, ' ')}
               </span>
             </p>
             {item.feedback && <p className="text-muted-foreground mt-1 text-xs italic">Feedback: {item.feedback}</p>}
@@ -92,7 +92,7 @@ export function QueryWorkspacePanel() {
   const { toast } = useToast();
 
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
-  const [activeMainTab, setActiveMainTab] = useState<'editor' | 'history'>('editor');
+  const [activeMainTab, setActiveMainTab] = useState<'editor' | 'history' | 'outputs'>('editor');
   const [showSolution, setShowSolution] = useState(false);
 
   const schemaString = formatSchemaForAI(tables);
@@ -113,7 +113,11 @@ export function QueryWorkspacePanel() {
         difficulty,
       });
       setCurrentProblem({ ...problem, difficulty });
-      addQueryToHistory({ sql: `Generated ${difficulty} problem.`, status: 'generated_problem', feedback: problem.problemStatement });
+      addQueryToHistory({ 
+        sql: `Generated ${difficulty} problem.`, 
+        status: 'generated_problem', 
+        feedback: problem.problemStatement 
+      });
       toast({ title: "New Problem Generated!", description: "A new SQL practice problem is ready." });
     } catch (error) {
       console.error("Error generating problem:", error);
@@ -129,9 +133,7 @@ export function QueryWorkspacePanel() {
       toast({ title: "Empty Query", description: "Please enter an SQL query.", variant: "destructive" });
       return;
     }
-    // Removed check for currentProblem to allow running general queries.
-    // Validation will happen against the schema and data, regardless of a specific problem.
-
+    
     setIsLoadingAi(true);
     setValidationResult(null);
     setShowSolution(false);
@@ -146,6 +148,7 @@ export function QueryWorkspacePanel() {
         sql: currentQuery,
         status: result.isValid ? 'validated_correct' : 'validated_incorrect',
         feedback: result.feedback,
+        validationResult: result, // Store the full result
       });
       toast({
         title: result.isValid ? "Query Processed" : "Query Needs Review",
@@ -154,9 +157,16 @@ export function QueryWorkspacePanel() {
       });
     } catch (error) {
       console.error("Error validating query:", error);
-      toast({ title: "AI Error", description: "Could not validate the query. Please try again.", variant: "destructive" });
-      setValidationResult({isValid: false, feedback: "An error occurred during validation."});
-      addQueryToHistory({ sql: currentQuery, status: 'error', feedback: 'AI validation service error.' });
+      const errorFeedback = "An error occurred during AI validation. Please check the console for details or try again.";
+      toast({ title: "AI Error", description: errorFeedback, variant: "destructive" });
+      const errorResult: QueryValidationResult = {isValid: false, feedback: errorFeedback };
+      setValidationResult(errorResult);
+      addQueryToHistory({ 
+        sql: currentQuery, 
+        status: 'error', 
+        feedback: 'AI validation service error.',
+        validationResult: errorResult
+      });
     } finally {
       setIsLoadingAi(false);
     }
@@ -182,10 +192,11 @@ export function QueryWorkspacePanel() {
         <CardDescription>Write queries, tackle AI-generated problems, and get instant feedback.</CardDescription>
       </CardHeader>
       
-      <Tabs value={activeMainTab} onValueChange={(value) => setActiveMainTab(value as 'editor' | 'history')} className="flex-grow flex flex-col">
-        <TabsList className="grid w-full grid-cols-2 m-4">
+      <Tabs value={activeMainTab} onValueChange={(value) => setActiveMainTab(value as 'editor' | 'history' | 'outputs')} className="flex-grow flex flex-col">
+        <TabsList className="grid w-full grid-cols-3 m-4">
           <TabsTrigger value="editor">Query Editor & Problems</TabsTrigger>
           <TabsTrigger value="history">Query History</TabsTrigger>
+          <TabsTrigger value="outputs">Execution Outputs</TabsTrigger>
         </TabsList>
 
         <ScrollArea className="flex-grow p-4 pt-0">
@@ -215,7 +226,7 @@ export function QueryWorkspacePanel() {
                   </Button>
                 </div>
                 {tables.length === 0 && <Alert variant="default" className="mt-2"><AlertDescription>Please define tables and columns in the Schema Editor to generate problems.</AlertDescription></Alert>}
-                {isLoadingAi && !currentProblem && ( // Show loading only if there's no current problem yet
+                {isLoadingAi && !currentProblem && ( 
                     <div className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating problem...</div>
                 )}
                 {currentProblem && (
@@ -250,7 +261,7 @@ export function QueryWorkspacePanel() {
                     <MonacoEditor
                       height="100%"
                       language="sql"
-                      theme="vs-light" // TODO: Add dark theme support
+                      theme="vs-light" 
                       value={currentQuery}
                       onChange={handleEditorChange}
                       options={{
@@ -290,9 +301,44 @@ export function QueryWorkspacePanel() {
                 </CardContent>
               </Card>
           </TabsContent>
+
+          <TabsContent value="outputs" className="mt-0 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center text-lg">
+                  <FileText className="mr-2 h-5 w-5" /> Execution Outputs
+                </CardTitle>
+                <CardDescription>Detailed output for each query you've run.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {queryHistory.filter(item => item.validationResult).length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">No query execution outputs to display yet. Run a query from the editor.</p>
+                )}
+                {queryHistory
+                  .filter(item => item.validationResult)
+                  .map(item => (
+                    <div key={item.id} className="space-y-2 border-b pb-4 last:border-b-0 last:pb-0">
+                      <div className="flex justify-between items-center text-xs text-muted-foreground">
+                        <span>{new Date(item.timestamp).toLocaleString()}</span>
+                        <span className={`font-medium ${
+                          item.status === 'validated_correct' ? 'text-green-600' :
+                          item.status === 'validated_incorrect' ? 'text-red-600' :
+                          item.status === 'error' ? 'text-destructive' : 'text-blue-600'
+                        }`}>
+                         {item.status.replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <pre className="text-xs whitespace-pre-wrap bg-muted/30 p-2 rounded font-mono mb-2">{item.sql}</pre>
+                      <QueryResultDisplay result={item.validationResult!} />
+                    </div>
+                  ))}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </ScrollArea>
       </Tabs>
     </Card>
   );
 }
 
+    

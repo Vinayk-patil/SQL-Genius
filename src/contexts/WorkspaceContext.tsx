@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
@@ -10,6 +11,10 @@ import type {
 } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
+// Define the type for the item passed to addQueryToHistory, now including optional validationResult
+type AddQueryHistoryItemInput = Omit<QueryHistoryItem, 'id' | 'timestamp'>;
+
+
 interface WorkspaceContextType {
   tables: TableDefinition[];
   setTables: React.Dispatch<React.SetStateAction<TableDefinition[]>>;
@@ -18,7 +23,7 @@ interface WorkspaceContextType {
   currentProblem: PracticeProblem | null;
   setCurrentProblem: React.Dispatch<React.SetStateAction<PracticeProblem | null>>;
   queryHistory: QueryHistoryItem[];
-  addQueryToHistory: (item: Omit<QueryHistoryItem, 'id' | 'timestamp'>) => void;
+  addQueryToHistory: (item: AddQueryHistoryItemInput) => void; // Updated signature
   clearHistory: () => void;
   currentQuery: string;
   setCurrentQuery: React.Dispatch<React.SetStateAction<string>>;
@@ -46,7 +51,8 @@ export const WorkspaceProvider = ({ children }: { children: ReactNode }) => {
   const [selectedTableIdForData, setSelectedTableIdForData] = useState<string | null>(null);
 
 
-  const addQueryToHistory = useCallback((item: Omit<QueryHistoryItem, 'id' | 'timestamp'>) => {
+  const addQueryToHistory = useCallback((item: AddQueryHistoryItemInput) => {
+    // Item now includes sql, status, feedback, and optionally validationResult
     setQueryHistory(prev => [{ ...item, id: uuidv4(), timestamp: new Date() }, ...prev].slice(0, 50)); // Limit history size
   }, []);
 
