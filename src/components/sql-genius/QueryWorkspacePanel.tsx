@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, Suspense } from 'react';
@@ -9,12 +10,13 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Lightbulb, Play, History, Sparkles, CheckCircle, XCircle, Loader2, Trash2, ClipboardCopy } from 'lucide-react';
+import { Lightbulb, Play, History, Sparkles, Loader2, Trash2, ClipboardCopy } from 'lucide-react';
 import { generateSqlPracticeProblem } from '@/ai/flows/generate-sql-practice-problem';
 import { validateSqlQuery } from '@/ai/flows/validate-sql-query';
 import { formatSchemaForAI, formatSampleDataForAI } from '@/lib/sql-formatter';
 import type { PracticeProblem, QueryValidationResult, QueryHistoryItem } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { QueryResultDisplay } from './QueryResultDisplay'; // New Import
 
 // Dynamically import Monaco Editor
 const MonacoEditor = dynamic(() => import('@monaco-editor/react').then(mod => mod.default), {
@@ -127,12 +129,8 @@ export function QueryWorkspacePanel() {
       toast({ title: "Empty Query", description: "Please enter an SQL query.", variant: "destructive" });
       return;
     }
-    if (!currentProblem) {
-      toast({ title: "No Problem Active", description: "Generate a practice problem first or select one.", variant: "destructive" });
-      // Potentially allow running queries without a problem for general practice later
-      addQueryToHistory({ sql: currentQuery, status: 'error', feedback: 'No practice problem active for validation.' });
-      return;
-    }
+    // Removed check for currentProblem to allow running general queries.
+    // Validation will happen against the schema and data, regardless of a specific problem.
 
     setIsLoadingAi(true);
     setValidationResult(null);
@@ -142,9 +140,6 @@ export function QueryWorkspacePanel() {
         query: currentQuery,
         schema: schemaString,
         data: dataString,
-        // Note: The validateSqlQuery flow doesn't explicitly use the problem statement,
-        // but it's good practice to have it in context if the AI could implicitly use it.
-        // For now, schema + data + query is the main input for validation logic.
       });
       setValidationResult(result);
       addQueryToHistory({
@@ -153,7 +148,7 @@ export function QueryWorkspacePanel() {
         feedback: result.feedback,
       });
       toast({
-        title: result.isValid ? "Query Correct!" : "Query Needs Review",
+        title: result.isValid ? "Query Processed" : "Query Needs Review",
         description: result.feedback.substring(0, 100) + (result.feedback.length > 100 ? "..." : ""),
         variant: result.isValid ? "default" : "destructive"
       });
@@ -173,7 +168,7 @@ export function QueryWorkspacePanel() {
 
   const selectQueryFromHistory = (sql: string) => {
     setCurrentQuery(sql);
-    setActiveMainTab('editor'); // Switch to editor tab
+    setActiveMainTab('editor'); 
     toast({title: "Query Loaded", description: "Query loaded into editor from history."})
   };
 
@@ -220,7 +215,7 @@ export function QueryWorkspacePanel() {
                   </Button>
                 </div>
                 {tables.length === 0 && <Alert variant="default" className="mt-2"><AlertDescription>Please define tables and columns in the Schema Editor to generate problems.</AlertDescription></Alert>}
-                {isLoadingAi && currentProblem === null && (
+                {isLoadingAi && !currentProblem && ( // Show loading only if there's no current problem yet
                     <div className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating problem...</div>
                 )}
                 {currentProblem && (
@@ -255,7 +250,7 @@ export function QueryWorkspacePanel() {
                     <MonacoEditor
                       height="100%"
                       language="sql"
-                      theme="vs-light" // TODO: Add dark theme support, or make it 'vs' and let it adapt?
+                      theme="vs-light" // TODO: Add dark theme support
                       value={currentQuery}
                       onChange={handleEditorChange}
                       options={{
@@ -268,38 +263,18 @@ export function QueryWorkspacePanel() {
                     />
                   </Suspense>
                 </div>
-                <Button onClick={handleRunQuery} disabled={isLoadingAi || !currentProblem}>
-                  {isLoadingAi && validationResult === null ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
+                <Button onClick={handleRunQuery} disabled={isLoadingAi || tables.length === 0}>
+                  {isLoadingAi && !validationResult ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                   Run & Validate Query
                 </Button>
               </CardContent>
             </Card>
             
-            {isLoadingAi && validationResult === null && (
-                <div className="text-sm text-muted-foreground flex items-center"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Validating query...</div>
+            {isLoadingAi && !validationResult && (
+                <div className="text-sm text-muted-foreground flex items-center mt-4"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Processing query...</div>
             )}
             {validationResult && (
-              <Card>
-                <CardHeader>
-                   <CardTitle className={`flex items-center text-lg ${validationResult.isValid ? 'text-green-600' : 'text-red-600'}`}>
-                    {validationResult.isValid ? <CheckCircle className="mr-2 h-5 w-5" /> : <XCircle className="mr-2 h-5 w-5" />}
-                    Validation Result
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Alert variant={validationResult.isValid ? 'default' : 'destructive'}>
-                    <AlertDescription className="whitespace-pre-wrap">{validationResult.feedback}</AlertDescription>
-                  </Alert>
-                  {!validationResult.isValid && validationResult.correctQuery && (
-                    <Card className="mt-3 bg-muted/50">
-                      <CardContent className="p-3">
-                        <p className="text-sm font-semibold mb-1">Suggested Correct Query:</p>
-                        <pre className="text-sm whitespace-pre-wrap bg-background p-2 rounded font-mono">{validationResult.correctQuery}</pre>
-                      </CardContent>
-                    </Card>
-                  )}
-                </CardContent>
-              </Card>
+              <QueryResultDisplay result={validationResult} />
             )}
           </TabsContent>
           
@@ -320,3 +295,4 @@ export function QueryWorkspacePanel() {
     </Card>
   );
 }
+
