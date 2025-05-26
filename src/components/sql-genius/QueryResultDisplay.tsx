@@ -19,7 +19,7 @@ export function QueryResultDisplay({ result }: QueryResultDisplayProps) {
   const columns = hasResultSet ? Object.keys(result.resultSet![0]) : [];
 
   return (
-    <Card className="mt-4 shadow-md">
+    <Card className="mt-4 shadow-md" data-testid="query-output-window" aria-label="Query Output Window">
       <CardHeader>
         <CardTitle className={`flex items-center text-lg ${!result.isValid ? 'text-destructive' : ''}`}>
           {result.isValid ? <CheckCircle className="mr-2 h-5 w-5 text-primary" /> : <XCircle className="mr-2 h-5 w-5 text-destructive" />}
@@ -89,7 +89,7 @@ export function QueryResultDisplay({ result }: QueryResultDisplayProps) {
                 Query executed successfully and returned no rows.
               </p>
             )}
-            {(!result.resultSet) && ( // Covers cases like DDL, DML, or if AI couldn't simulate a SELECT
+            {(!result.resultSet && !hasEmptyResultSet) && ( // Covers cases like DDL, DML, or if AI couldn't simulate a SELECT
               <p className="text-sm text-muted-foreground mt-2 p-3 bg-muted/30 rounded-md">
                 Query validated successfully. No data output to display for this type of query, or simulation was not applicable.
               </p>
